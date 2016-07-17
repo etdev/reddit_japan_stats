@@ -1,10 +1,22 @@
-require "data_fetcher"
+require_relative "./data_fetcher"
 
-# actually fetch the data from reddit and store in DB
+# fetch the data from reddit and store in DB
 # parse command_line args
 cmd_line_args = Hash[ ARGV.join(' ').scan(/--?([^=\s]+)(?:=(\S+))?/) ]
 
 # fetch URLs
-crawl_urls = RedditJapanStats::DataFetcher.new(type: .fetch_crawl_urls
+fetcher = RedditJapanStats::DataFetcher.new(
+  thread_type: cmd_line_args["thread_type"] || "complaint",
+  session_cookie: cmd_line_args["reddit_session"] || ""
+)
+
+thread_urls = fetcher.fetch_thread_crawl_urls
+
 # fetch data for each URL
+# --reddit_session=28881092%2C2016-04-26T08%3A47%3A24%2C7f9442a3be3fc882543b7f3c7bf10384a702d204
+
+threads = thread_urls.each_with_object({}) do |thread_url, threads|
+  threads[thread_url] = fetcher.fetch_thread_data(thread_url)
+end
+
 # store in DB
