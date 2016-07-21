@@ -16,6 +16,7 @@ GEM
     pry-byebug (3.4.0)
       byebug (~> 9.0)
       pry (~> 0.10)
+    sequel (4.36.0)
     slop (3.6.0)
 
 PLATFORMS
@@ -25,6 +26,7 @@ DEPENDENCIES
   nokogiri
   pry
   pry-byebug
+  sequel
 
 BUNDLED WITH
    1.11.2

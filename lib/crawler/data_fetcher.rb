@@ -1,8 +1,10 @@
 require "uri"
+require "date"
 require "pry"
 require "json"
 require "open-uri"
 require "net/http"
+require "sequel"
 
 module RedditJapanStats
   class DataFetcher
@@ -39,13 +41,28 @@ module RedditJapanStats
       with_default_error_check do
         raw_response = fetch_json_from_url(thread_url)
         json_data = JSON.parse(raw_response.body)
-        comments = find_all_comments(json_data[1]).compact.select{ |x| x[1] != "[deleted]" }
-        #comment_data = json_data[1].dig("data", "children")[4]
-        #binding.pry #comment_bodies = deep_find_all(comment_data, "body")
-        binding.pry
-        x = 5
+        created_at = json_data[0]["data"]["children"][0]["data"]["created"]
+        comments = find_all_comments(json_data[1]).select{ |x| !x["body"].nil? && x["body"] != "[deleted]" }
+        thread = { date: DateTime.strptime(created_at.to_s, "%s"), type: thread_type, comments: comments }
+      end
+      thread
+    end
+
+    def store_thread_data_in_db(thread_data:, user:, password: '')
+      puts "Storing thread data for #{thread_data[:date]}"
+      db = Sequel.connect(adapter: "postgres", host: "localhost", database: "reddit_japan_stats", user: user, password: password)
+      comments_attr_arr = thread_data[:comments]
+      # store thread
+      thread_data.reject! { |k, v| k == :comments }
+      threads, comments = db.from(:threads), db.from(:comments)
+      threads.insert(thread_data)
+      thread_id = threads.where(date: thread_data[:date]).first[:id]
+      # store comments
+      comments_attr_arr.each do |comment_attrs|
+        comments.insert(comment_attrs.merge("thread_id" => thread_id))
       end
     end
+
 
     private
 
@@ -84,7 +101,7 @@ module RedditJapanStats
     def find_all_comments(hsh, so_far=[])
       unless hsh.nil?
         hsh.dig("data", "children").each do |child|
-          current_comment = child["data"].values_at("score", "body", "author")
+          current_comment = Hash[["score", "body", "author"].zip(child["data"].values_at("score", "body", "author"))]
           # if has replies
           unless child.nil?
             if child.dig("data", "replies") != ""
